@@ -1,12 +1,13 @@
 'use client';
 
 import type React from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, Bell, Upload } from 'lucide-react';
+import Markdown from 'react-markdown'
 
 export default function Page() {
   const [file, setFile] = useState<File | null>(null);
-
+  const [markdown, setMarkdown] = useState<string>('');
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
@@ -14,6 +15,17 @@ export default function Page() {
     }
   };
 
+  function fetchMarkdown() {
+    fetch('https://arealisbackend.s3.us-east-1.amazonaws.com/ai_response/0194b2bc-16da-7b81-85aa-b27ad78569a7.txt')
+      .then(response => response.text())
+      .then(text => setMarkdown(text))
+      .catch(error => console.error('Error fetching markdown:', error));
+  }
+
+  useEffect(() => {
+    fetchMarkdown()
+  }, [])
+  
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top Navigation */}
@@ -61,7 +73,6 @@ export default function Page() {
             ))}
           </nav>
         </aside>
-
         {/* Main Content */}
         <main className="flex-1 p-8">
           <div className="max-w-4xl mx-auto">
@@ -147,7 +158,13 @@ export default function Page() {
               </div>
             </div>
           </div>
+
+          {markdown && (
+            <Markdown>{markdown}</Markdown>
+          )}
         </main>
+
+        
       </div>
     </div>
   );
