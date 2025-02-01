@@ -1,13 +1,14 @@
 'use client';
 
-import type React from 'react';
-import { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Search, Bell, Upload } from 'lucide-react';
-import Markdown from 'react-markdown'
+import Markdown from 'react-markdown';
+import { log } from 'console';
 
 export default function Page() {
   const [file, setFile] = useState<File | null>(null);
-  const [markdown, setMarkdown] = useState<string>('');
+  const [markdown, setMarkdown] = useState('');
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
@@ -15,17 +16,66 @@ export default function Page() {
     }
   };
 
-  function fetchMarkdown() {
-    fetch('https://arealisbackend.s3.us-east-1.amazonaws.com/ai_response/0194b2bc-16da-7b81-85aa-b27ad78569a7.txt')
-      .then(response => response.text())
-      .then(text => setMarkdown(text))
-      .catch(error => console.error('Error fetching markdown:', error));
-  }
+  const handleUpload = async () => {
+    if (!file) return;
+    try {
+      console.log('Uploading file:', file);
+      // Step 1: Upload the CSV file to /file/upload_file
+      const formData = new FormData();
+      formData.append('file_upload', file);
 
-  useEffect(() => {
-    fetchMarkdown()
-  }, [])
-  
+      const uploadResponse = await fetch(
+        'http://ec2-3-90-88-253.compute-1.amazonaws.com/file/upload_file',
+        {
+          method: 'POST',
+          headers: {
+            accept: 'application/json'
+            // Do not set Content-Type header when sending FormData
+          },
+          body: formData,
+        }
+      );
+
+      if (!uploadResponse.ok) {
+        console.error('File upload failed.');
+        return;
+      }
+      const uploadData = await uploadResponse.json();
+      const fileName = uploadData.data.file_name;
+
+      // Step 2: Analyze the uploaded file by passing fileName to /ai/analyze/{fileName}
+      const analyzeResponse = await fetch(
+        `http://ec2-3-90-88-253.compute-1.amazonaws.com/ai/analyze/${fileName}`,
+        {
+          method: 'POST',
+          headers: {
+            accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: '', // No body needed for this request
+        }
+      );
+
+      if (!analyzeResponse.ok) {
+        console.error('AI analyze request failed.');
+        return;
+      }
+      const analyzeData = await analyzeResponse.json();
+      const responseFileUrl = analyzeData.data.response_file_url;
+
+      // Step 3: Fetch the Markdown content from the response file URL
+      const markdownResponse = await fetch(responseFileUrl);
+      if (!markdownResponse.ok) {
+        console.error('Fetching markdown content failed.');
+        return;
+      }
+      const markdownText = await markdownResponse.text();
+      setMarkdown(markdownText);
+    } catch (error) {
+      console.error('Error processing request:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top Navigation */}
@@ -73,6 +123,7 @@ export default function Page() {
             ))}
           </nav>
         </aside>
+
         {/* Main Content */}
         <main className="flex-1 p-8">
           <div className="max-w-4xl mx-auto">
@@ -110,20 +161,27 @@ export default function Page() {
             </div>
 
             {file && (
-              <p className="mt-2 text-sm text-gray-600 mb-4">
-                Selected file: {file.name}
-              </p>
+              <div>
+                <p className="mt-2 text-sm text-gray-600 mb-4">
+                  Selected file: {file.name}
+                </p>
+                <button
+                  onClick={handleUpload}
+                  className="bg-[#246BFD] text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+                >
+                  Upload and Analyze
+                </button>
+              </div>
             )}
 
             {/* Data Sources */}
-            <div className="space-y-6">
+            <div className="space-y-6 mt-12">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold">Data Sources</h2>
                 <button className="bg-[#246BFD] text-white px-4 py-2 rounded-lg hover:bg-blue-600">
                   + Connect Data Source
                 </button>
               </div>
-
               <div className="grid grid-cols-3 gap-6">
                 {[
                   {
@@ -160,11 +218,11 @@ export default function Page() {
           </div>
 
           {markdown && (
-            <Markdown>{markdown}</Markdown>
+            <div className="mt-8">
+              <Markdown>{markdown}</Markdown>
+            </div>
           )}
         </main>
-
-        
       </div>
     </div>
   );
